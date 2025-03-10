@@ -3,10 +3,7 @@ package osint
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 // ValidationResult stores the validation status and details
@@ -18,7 +15,7 @@ type ValidationResult struct {
 	ErrorReason string
 }
 
-// ValidateProfile performs additional checks to verify if a profile is genuine
+// ValidateProfile performs advanced validation based on HTTP status code and content
 func ValidateProfile(client *http.Client, platform SocialPlatform, url string) ValidationResult {
 	result := ValidationResult{
 		IsValid:    false,
@@ -49,224 +46,58 @@ func ValidateProfile(client *http.Client, platform SocialPlatform, url string) V
 
 	result.StatusCode = resp.StatusCode
 
-	// Check HTTP status code
-	if resp.StatusCode != http.StatusOK {
-		result.ErrorReason = fmt.Sprintf("Invalid status code: %d", resp.StatusCode)
+	// Check common error status codes
+	switch resp.StatusCode {
+	case http.StatusNotFound:
+		result.ErrorReason = "Profile does not exist (404)"
+		return result
+	case http.StatusForbidden:
+		result.ErrorReason = "Access forbidden (403) - possible rate limiting"
+		result.Confidence = 0.3 // Profile might exist but access is blocked
+		return result
+	case http.StatusTooManyRequests:
+		result.ErrorReason = "Rate limited (429)"
+		result.Confidence = 0.3
 		return result
 	}
 
-	// Parse HTML
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		result.ErrorReason = fmt.Sprintf("Error parsing HTML: %v", err)
-		return result
-	}
+	if resp.StatusCode == http.StatusOK {
+		result.IsValid = true
+		result.Confidence = 0.7 // Base confidence
+		result.Markers = append(result.Markers, "Profile page accessible")
 
-	// Perform platform-specific validation
-	switch platform.Name {
-	case "Twitter":
-		return validateTwitterProfile(doc)
-	case "Instagram":
-		return validateInstagramProfile(doc)
-	case "LinkedIn":
-		return validateLinkedInProfile(doc)
-	case "GitHub":
-		return validateGitHubProfile(doc)
-	case "Facebook":
-		return validateFacebookProfile(doc)
-	default:
-		return validateGenericProfile(doc, platform)
-	}
-}
-
-func validateTwitterProfile(doc *goquery.Document) ValidationResult {
-	result := ValidationResult{
-		Markers: make([]string, 0),
-	}
-
-	// Check for Twitter-specific elements
-	if doc.Find("[data-testid='UserName']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has username element")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find("[data-testid='UserAvatar']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has avatar")
-		result.Confidence += 0.2
-	}
-
-	if doc.Find("[data-testid='tweet']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has tweets")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find("[data-testid='UserProfileHeader_Items']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile header")
-		result.Confidence += 0.2
-	}
-
-	result.IsValid = result.Confidence >= 0.7
-	return result
-}
-
-func validateInstagramProfile(doc *goquery.Document) ValidationResult {
-	result := ValidationResult{
-		Markers: make([]string, 0),
-	}
-
-	// Check for Instagram-specific elements
-	if doc.Find("header").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile header")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find("header img").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile picture")
-		result.Confidence += 0.2
-	}
-
-	if doc.Find("article").Length() > 0 {
-		result.Markers = append(result.Markers, "Has posts")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find(".biography").Length() > 0 {
-		result.Markers = append(result.Markers, "Has biography")
-		result.Confidence += 0.2
-	}
-
-	result.IsValid = result.Confidence >= 0.6
-	return result
-}
-
-func validateLinkedInProfile(doc *goquery.Document) ValidationResult {
-	result := ValidationResult{
-		Markers: make([]string, 0),
-	}
-
-	// Check for LinkedIn-specific elements
-	if doc.Find(".pv-top-card").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile card")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find(".experience-section").Length() > 0 {
-		result.Markers = append(result.Markers, "Has experience section")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find(".education-section").Length() > 0 {
-		result.Markers = append(result.Markers, "Has education section")
-		result.Confidence += 0.2
-	}
-
-	if doc.Find(".profile-photo-edit__preview").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile photo")
-		result.Confidence += 0.2
-	}
-
-	result.IsValid = result.Confidence >= 0.6
-	return result
-}
-
-func validateGitHubProfile(doc *goquery.Document) ValidationResult {
-	result := ValidationResult{
-		Markers: make([]string, 0),
-	}
-
-	// Check for GitHub-specific elements
-	if doc.Find(".vcard-avatar").Length() > 0 {
-		result.Markers = append(result.Markers, "Has avatar")
-		result.Confidence += 0.2
-	}
-
-	if doc.Find(".vcard-names").Length() > 0 {
-		result.Markers = append(result.Markers, "Has name section")
-		result.Confidence += 0.2
-	}
-
-	if doc.Find(".js-yearly-contributions").Length() > 0 {
-		result.Markers = append(result.Markers, "Has contribution graph")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find(".pinned-items-list").Length() > 0 {
-		result.Markers = append(result.Markers, "Has pinned repositories")
-		result.Confidence += 0.3
-	}
-
-	result.IsValid = result.Confidence >= 0.5
-	return result
-}
-
-func validateFacebookProfile(doc *goquery.Document) ValidationResult {
-	result := ValidationResult{
-		Markers: make([]string, 0),
-	}
-
-	// Check for Facebook-specific elements
-	if doc.Find("[data-pagelet='ProfileActions']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile actions")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find("[data-pagelet='ProfileTimeline']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has timeline")
-		result.Confidence += 0.3
-	}
-
-	if doc.Find("[data-pagelet='ProfilePhoto']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has profile photo")
-		result.Confidence += 0.2
-	}
-
-	if doc.Find("[data-pagelet='ProfileTilesBio']").Length() > 0 {
-		result.Markers = append(result.Markers, "Has bio section")
-		result.Confidence += 0.2
-	}
-
-	result.IsValid = result.Confidence >= 0.6
-	return result
-}
-
-func validateGenericProfile(doc *goquery.Document, platform SocialPlatform) ValidationResult {
-	result := ValidationResult{
-		Markers: make([]string, 0),
-	}
-
-	// Check existence markers
-	html, _ := doc.Html()
-	for _, marker := range platform.ExistMarkers {
-		if strings.Contains(html, marker) {
-			result.Markers = append(result.Markers, fmt.Sprintf("Found marker: %s", marker))
-			result.Confidence += 0.3
+		// Add platform-specific validation
+		switch platform.Name {
+		case "Twitter":
+			if resp.StatusCode == http.StatusOK && resp.Request.URL.String() != url {
+				// Twitter redirects non-existent profiles to home
+				result.IsValid = false
+				result.Confidence = 0.9
+				result.ErrorReason = "Profile redirected to home page"
+				return result
+			}
+		case "Instagram":
+			if resp.StatusCode == http.StatusOK && resp.Request.URL.String() != url {
+				// Instagram redirects non-existent profiles to home
+				result.IsValid = false
+				result.Confidence = 0.9
+				result.ErrorReason = "Profile redirected to login page"
+				return result
+			}
+		case "Facebook":
+			if resp.StatusCode == http.StatusOK && resp.Request.URL.Host == "www.facebook.com" && resp.Request.URL.Path == "/" {
+				// Facebook redirects non-existent profiles to home
+				result.IsValid = false
+				result.Confidence = 0.9
+				result.ErrorReason = "Profile redirected to home page"
+				return result
+			}
 		}
+
+		result.Confidence = 1.0
+	} else {
+		result.ErrorReason = fmt.Sprintf("Profile not accessible (Status: %d)", resp.StatusCode)
 	}
 
-	// Check for non-existence markers
-	for _, marker := range platform.NotExistMarkers {
-		if strings.Contains(html, marker) {
-			result.Markers = append(result.Markers, fmt.Sprintf("Found negative marker: %s", marker))
-			result.Confidence -= 0.4
-		}
-	}
-
-	// Check basic profile elements using platform selectors
-	if platform.NameSelector != "" && doc.Find(platform.NameSelector).Length() > 0 {
-		result.Markers = append(result.Markers, "Has name element")
-		result.Confidence += 0.2
-	}
-
-	if platform.AvatarSelector != "" && doc.Find(platform.AvatarSelector).Length() > 0 {
-		result.Markers = append(result.Markers, "Has avatar element")
-		result.Confidence += 0.2
-	}
-
-	if platform.BioSelector != "" && doc.Find(platform.BioSelector).Length() > 0 {
-		result.Markers = append(result.Markers, "Has bio element")
-		result.Confidence += 0.2
-	}
-
-	result.IsValid = result.Confidence >= 0.5
 	return result
 }

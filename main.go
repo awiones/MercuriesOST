@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/awion/MercuriesOST/public/osint"
@@ -73,11 +76,18 @@ func main() {
 		return
 	}
 
+	// Handle email intelligence
+	if *emailFlag != "" {
+		fmt.Println("Running Email Intelligence module...")
+		runEmailIntelligence(*emailFlag, *outputFlag)
+		return
+	}
+
 	// Handle legacy module flags
 	switch {
 	case *socialMediaFlag != "":
 		fmt.Println("Running Social Media Intelligence module...")
-		runSocialMediaIntelligence(*socialMediaFlag, *outputFlag, *verboseFlag)
+		runSocialMediaIntelligence(*socialMediaFlag, *outputFlag)
 	case *domainFlag != "":
 		fmt.Println("Domain intelligence module not implemented yet")
 	case *emailFlag != "":
@@ -110,20 +120,18 @@ func displayBanner() {
 	color.Cyan(banner)
 }
 
-// runSocialMediaIntelligence calls the actual implementation and displays results
-func runSocialMediaIntelligence(query, outputPath string, verbose bool) {
+// Update function signature to remove unused parameter
+func runSocialMediaIntelligence(query, outputPath string) {
 	fmt.Printf("Searching social media for: %s\n", query)
 
-	// Call the actual implementation
-	results, err := osint.SearchProfilesSequentially(query, outputPath, verbose)
+	// Update function call to use verbose flag directly
+	results, err := osint.SearchProfilesSequentially(query, outputPath, *verboseFlag)
 	if err != nil {
 		color.Red("Error: %v", err)
 		return
 	}
 
-	// Display results in console regardless of output file
 	displaySocialResults(results)
-
 	fmt.Println("Social media intelligence gathering completed")
 }
 
@@ -132,95 +140,148 @@ func displaySocialResults(results *osint.SocialMediaResults) {
 	color.Green("\n=== SEARCH RESULTS ===")
 	color.Yellow("Query: %s", results.Query)
 	color.Yellow("Timestamp: %s", results.Timestamp)
-	color.Yellow("Profiles Found: %d\n", results.ProfilesFound)
+	color.Yellow("Total Profiles Found: %d\n", results.ProfilesFound)
 
 	if results.ProfilesFound == 0 {
-		color.Red("No profiles found for this query.")
+		color.Red("\nNo profiles found. Searched platforms:")
+		for _, platform := range []string{"Twitter", "Instagram", "Facebook", "LinkedIn", "GitHub", "Reddit", "TikTok"} {
+			color.Red("  • %s - No profile found", platform)
+		}
 		return
 	}
 
-	// Display each found profile
+	// Group profiles by platform for better organization
+	platformProfiles := make(map[string][]osint.ProfileResult)
 	for _, profile := range results.Profiles {
-		if profile.Exists {
-			// Display profile header
-			color.Cyan("\n[+] %s Profile", profile.Platform)
-			color.White("    URL: %s", profile.URL)
+		platformProfiles[profile.Platform] = append(platformProfiles[profile.Platform], profile)
+	}
 
-			// Display detailed information if available
+	// Display results for each platform
+	for platform, profiles := range platformProfiles {
+		color.Cyan("\n[%s]", platform)
+		for _, profile := range profiles {
+			color.Green("  Profile URL: %s", profile.URL)
+
 			if profile.FullName != "" {
-				color.White("    Full Name: %s", profile.FullName)
+				color.White("  • Full Name: %s", profile.FullName)
 			}
 
 			if profile.Bio != "" {
-				color.White("    Bio: %s", profile.Bio)
+				color.White("  • Bio: %s", strings.TrimSpace(profile.Bio))
 			}
 
 			if profile.FollowerCount > 0 {
-				color.White("    Followers: %d", profile.FollowerCount)
-			}
-
-			if profile.JoinDate != "" {
-				color.White("    Joined: %s", profile.JoinDate)
+				color.White("  • Followers: %d", profile.FollowerCount)
 			}
 
 			if profile.Location != "" {
-				color.White("    Location: %s", profile.Location)
-			}
-
-			if len(profile.Connections) > 0 {
-				color.White("    Notable Connections: %d found", len(profile.Connections))
-				// Show up to 3 connections as preview
-				connLimit := 3
-				if len(profile.Connections) < connLimit {
-					connLimit = len(profile.Connections)
-				}
-				for i := 0; i < connLimit; i++ {
-					color.White("      - %s", profile.Connections[i])
-				}
+				color.White("  • Location: %s", profile.Location)
 			}
 
 			if len(profile.RecentActivity) > 0 {
-				color.White("    Recent Activity: %d items found", len(profile.RecentActivity))
-				// Show up to 3 activities as preview
-				actLimit := 3
-				if len(profile.RecentActivity) < actLimit {
-					actLimit = len(profile.RecentActivity)
-				}
-				for i := 0; i < actLimit; i++ {
-					color.White("      - %s", profile.RecentActivity[i])
+				color.White("  • Recent Activity:")
+				for i, activity := range profile.RecentActivity[:min(3, len(profile.RecentActivity))] {
+					color.White("    %d. %s", i+1, activity)
 				}
 			}
 
-			// Display additional insights if available
 			if len(profile.Insights) > 0 {
-				color.White("    Insights:")
+				color.White("  • Insights:")
 				for _, insight := range profile.Insights {
-					color.White("      - %s", insight)
+					color.White("    - %s", insight)
 				}
 			}
+
+			fmt.Println()
 		}
 	}
 
-	// Provide a summary at the end
-	fmt.Println()
-	color.Green("=== SUMMARY ===")
-
-	// Platform breakdown
-	color.White("Platform Breakdown:")
+	// Display summary
+	color.Green("\n=== PLATFORM SUMMARY ===")
 	for _, platform := range []string{"Twitter", "Instagram", "Facebook", "LinkedIn", "GitHub", "Reddit", "TikTok"} {
-		found := false
-		for _, profile := range results.Profiles {
-			if profile.Platform == platform && profile.Exists {
-				found = true
-				break
-			}
-		}
-
-		if found {
-			color.Green("  [✓] %s", platform)
+		if profiles, exists := platformProfiles[platform]; exists {
+			color.Green("  ✓ %s: %d profile(s) found", platform, len(profiles))
 		} else {
-			color.Red("  [✗] %s", platform)
+			color.Red("  ✗ %s: No profile found", platform)
 		}
+	}
+}
+
+// Helper function to get minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Add this new function for email intelligence
+func runEmailIntelligence(email, outputPath string) {
+	fmt.Printf("Analyzing email: %s\n", email)
+
+	// Call the email analysis implementation
+	results, err := osint.AnalyzeEmail(email)
+	if err != nil {
+		color.Red("Error: %v", err)
+		return
+	}
+
+	// Display results
+	displayEmailResults(results)
+
+	// Save results if output path is specified
+	if outputPath != "" {
+		data, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			color.Red("Error saving results: %v", err)
+			return
+		}
+		if err := ioutil.WriteFile(outputPath, data, 0644); err != nil {
+			color.Red("Error writing to file: %v", err)
+			return
+		}
+		color.Green("Results saved to: %s", outputPath)
+	}
+}
+
+// displayEmailResults formats and displays the email analysis results
+func displayEmailResults(results *osint.EmailAnalysisResult) {
+	color.Green("\n=== EMAIL ANALYSIS RESULTS ===")
+	color.Yellow("Email: %s", results.Email)
+	color.Yellow("Timestamp: %s\n", results.Timestamp)
+
+	// Validity
+	if results.Valid {
+		color.Green("✓ Email format is valid")
+	} else {
+		color.Red("✗ Invalid email format")
+	}
+
+	// Domain Information
+	color.Cyan("\n[Domain Information]")
+	color.White("Provider: %s", results.DomainInfo.Provider)
+	color.White("Reputation: %s", results.DomainInfo.Reputation)
+	color.White("Has MX Records: %v", results.DomainInfo.HasMX)
+	color.White("Has SPF: %v", results.DomainInfo.HasSPF)
+	color.White("Has DMARC: %v", results.DomainInfo.HasDMARC)
+
+	// Format Analysis
+	color.Cyan("\n[Format Analysis]")
+	color.White("Pattern: %s", results.Format.Pattern)
+	color.White("Contains Name: %v", results.Format.ContainsName)
+	color.White("Contains Year: %v", results.Format.ContainsYear)
+	color.White("Has Special Characters: %v", results.Format.SpecialChars)
+
+	// Security Concerns
+	if results.DisposableEmail {
+		color.Red("\n[Security Warning]")
+		color.Red("⚠ This appears to be a disposable email address")
+	}
+
+	// Insights
+	color.Cyan("\n[Insights]")
+	for _, insight := range results.Insights {
+		color.White("• %s", insight)
 	}
 
 	fmt.Println()

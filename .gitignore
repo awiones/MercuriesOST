@@ -39,3 +39,7 @@ temp/
 # Log files
 *.log
 logs/
+
+email-analyze.go
+README.md
+LICENSE

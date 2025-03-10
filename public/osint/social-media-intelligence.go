@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -191,11 +192,12 @@ const (
 
 // Add this struct for rate tracking
 type rateTracker struct {
-	mu          sync.Mutex
-	count       int
-	lastCount   int
-	lastUpdate  time.Time
-	currentRate float64
+	mu              sync.Mutex
+	count           int
+	lastCount       int
+	lastUpdate      time.Time
+	currentRate     float64
+	currentPlatform string // Add this field
 }
 
 func (rt *rateTracker) update() {
@@ -221,6 +223,13 @@ func (rt *rateTracker) getRate() float64 {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	return rt.currentRate
+}
+
+// Add method to update current platform
+func (rt *rateTracker) setCurrentPlatform(platform string) {
+	rt.mu.Lock()
+	rt.currentPlatform = platform
+	rt.mu.Unlock()
 }
 
 // Add memory management
@@ -376,29 +385,17 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	// Initialize work pool
 	var wg sync.WaitGroup
 
-	// Create work items channel
-	workChan := make(chan workItem)
+	// Create a single work channel
+	workChan := make(chan workItem, acc.maxWorkers*2)
 
 	// Create rate tracker
 	tracker := &rateTracker{lastUpdate: time.Now()}
-
-	// Initialize memory manager
-	memManager := newMemoryManager(100) // Keep max 100 results in memory
-
-	// Adjust worker count based on system resources
-	systemMemory := getSystemMemory()
-	workerCount := calculateOptimalWorkers(systemMemory)
-	if workerCount > maxWorkers {
-		workerCount = maxWorkers
-	}
-
-	// Create work items channel with reduced buffer
-	workChan = make(chan workItem, workerCount*2)
+	memManager := newMemoryManager(100) // Create memory manager instance
 
 	// Progress bar setup with rate display
 	totalOperations := len(platforms) * len(searchTerms)
 	bar := progressbar.NewOptions(totalOperations,
-		progressbar.OptionSetDescription("Scanning social media profiles"),
+		progressbar.OptionSetDescription("Starting scan..."),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowCount(),
 		progressbar.OptionSetTheme(progressbar.Theme{
@@ -408,44 +405,9 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 			BarStart:      "[",
 			BarEnd:        "]",
 		}),
-		progressbar.OptionOnCompletion(func() {
-			fmt.Fprint(os.Stdout, "\n")
-		}),
 	)
 
-	// Start rate display updater
-	go func() {
-		for {
-			time.Sleep(updateInterval)
-			tracker.update()
-			bar.Describe(fmt.Sprintf("Scanning profiles (%.1f profiles/s)", tracker.getRate()))
-		}
-	}()
-
-	// Create channels for batch processing
-	workChan = make(chan workItem, acc.maxWorkers*2)
-	batchChan := make(chan []workItem, acc.maxWorkers)
-
-	// Create batch processor
-	go func() {
-		batch := make([]workItem, 0, acc.maxBatch)
-		for work := range workChan {
-			batch = append(batch, work)
-			if len(batch) >= acc.maxBatch {
-				batchItems := make([]workItem, len(batch))
-				copy(batchItems, batch)
-				batchChan <- batchItems
-				batch = batch[:0]
-			}
-		}
-		// Send remaining items
-		if len(batch) > 0 {
-			batchChan <- batch
-		}
-		close(batchChan)
-	}()
-
-	// Spawn optimized number of workers
+	// Start workers before feeding work items
 	for i := 0; i < acc.maxWorkers; i++ {
 		wg.Add(1)
 		g.Go(func() error {
@@ -453,23 +415,55 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 			client := connPool.Get().(*http.Client)
 			defer connPool.Put(client)
 
-			for items := range batchChan {
-				if err := processBatchParallel(ctx, client, items, memManager, tracker, bar, limiter); err != nil {
+			for work := range workChan {
+				tracker.setCurrentPlatform(work.platform.Name)
+
+				if err := limiter.Wait(ctx); err != nil {
 					return err
 				}
+
+				result := processSingleProfile(client, work.platform, work.term)
+				if result.Exists {
+					resultsChan <- result
+				}
+
+				tracker.increment()
+				bar.Add(1)
 			}
 			return nil
 		})
 	}
 
-	// Feed work items
+	// Feed work items after workers are started
 	go func() {
-		for _, p := range platforms {
+		for _, platform := range platforms {
 			for _, term := range searchTerms {
-				workChan <- workItem{platform: p, term: term}
+				select {
+				case workChan <- workItem{platform: platform, term: term}:
+				case <-ctx.Done():
+					return
+				}
 			}
 		}
 		close(workChan)
+	}()
+
+	// Start rate display updater with platform information
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				time.Sleep(updateInterval)
+				tracker.update()
+				platform := tracker.currentPlatform
+				if platform != "" {
+					bar.Describe(fmt.Sprintf("[cyan]Scanning %s[reset] (%.1f profiles/s)",
+						platform, tracker.getRate()))
+				}
+			}
+		}
 	}()
 
 	// Wait for all workers to complete
@@ -485,19 +479,37 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	}
 
 	// Collect results
+	processedProfiles := make(map[string]bool)
 	for result := range resultsChan {
-		results.ProfilesFound++
-		results.Profiles = append(results.Profiles, result)
+		// Skip duplicate profiles
+		if processedProfiles[result.URL] {
+			continue
+		}
+		processedProfiles[result.URL] = true
 
-		if verbose {
-			printProfileDetails(&result)
+		if result.Exists {
+			results.ProfilesFound++
+			memManager.add(result)  // Now memManager is defined
+			results.Profiles = append(results.Profiles, result)
+
+			if verbose {
+				printProfileDetails(&result)
+			}
 		}
 	}
+
+	// Flush any remaining results before returning
+	memManager.flush()  // Now memManager is defined
 
 	// Check for errors
 	if len(errorsChan) > 0 {
 		return results, fmt.Errorf("encountered %d errors during scanning", len(errorsChan))
 	}
+
+	// Sort profiles by platform name for consistent output
+	sort.Slice(results.Profiles, func(i, j int) bool {
+		return results.Profiles[i].Platform < results.Profiles[j].Platform
+	})
 
 	// Save results
 	if outputPath != "" {
@@ -507,64 +519,6 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	}
 
 	return results, nil
-}
-
-// Add new parallel batch processor
-func processBatchParallel(ctx context.Context, client *http.Client, batch []workItem,
-	memManager *memoryManager, tracker *rateTracker, bar *progressbar.ProgressBar,
-	limiter *rate.Limiter) error {
-
-	var wg sync.WaitGroup
-	resultChan := make(chan ProfileResult, len(batch))
-	errChan := make(chan error, len(batch))
-	sem := make(chan struct{}, 10) // Limit concurrent requests within batch
-
-	for _, work := range batch {
-		wg.Add(1)
-		go func(w workItem) {
-			defer wg.Done()
-			sem <- struct{}{}        // Acquire semaphore
-			defer func() { <-sem }() // Release semaphore
-
-			if err := limiter.Wait(ctx); err != nil {
-				errChan <- err
-				return
-			}
-
-			result := processSingleProfile(client, w.platform, w.term)
-			if result.Exists {
-				select {
-				case resultChan <- result:
-				default:
-					// Drop result if channel is full
-				}
-			}
-
-			tracker.increment()
-			bar.Add(1)
-		}(work)
-	}
-
-	// Process results in parallel
-	go func() {
-		wg.Wait()
-		close(resultChan)
-		close(errChan)
-	}()
-
-	// Collect results
-	for result := range resultChan {
-		memManager.add(result)
-	}
-
-	// Check for errors
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Update processSingleProfile to remove verbose parameter in checkProfile call
@@ -751,6 +705,26 @@ func extractProfileInfo(doc *goquery.Document, result *ProfileResult, platform S
 			}
 		})
 	}
+
+	// Add confidence score for profile matching
+	confidenceScore := 0
+	if result.FullName != "" {
+		confidenceScore += 20
+	}
+	if result.Bio != "" {
+		confidenceScore += 20
+	}
+	if result.Avatar != "" {
+		confidenceScore += 20
+	}
+	if result.FollowerCount > 0 {
+		confidenceScore += 20
+	}
+	if result.Location != "" {
+		confidenceScore += 20
+	}
+
+	result.Insights = append(result.Insights, fmt.Sprintf("Profile match confidence: %d%%", confidenceScore))
 }
 
 // extractRecentActivity extracts recent posts or activities
