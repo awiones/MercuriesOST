@@ -553,7 +553,7 @@ func checkProfile(client *http.Client, platform SocialPlatform, url string, user
 	}
 
 	// Validate the profile
-	validation := ValidateProfile(client, platform, url)
+	validation := ValidateProfile(client, platform, url, "")
 
 	if validation.StatusCode != 200 {
 		result.Error = fmt.Sprintf("HTTP Status: %d - %s", validation.StatusCode, validation.ErrorReason)
