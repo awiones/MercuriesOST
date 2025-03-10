@@ -1,0 +1,41 @@
+# Output directories
+dump/
+results/
+temp/
+
+# Project specific files
+*.json
+!go.sum
+.env
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# System specific
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Binary files
+bin/
+dist/
+
+# Debug files
+debug/
+
+# Temporary files
+tmp/
+temp/
+
+# Log files
+*.log
+logs/
