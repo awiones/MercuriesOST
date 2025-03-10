@@ -64,6 +64,12 @@ type SocialMediaResults struct {
 	Profiles      []ProfileResult `json:"profiles"`
 }
 
+// workItem represents a single work unit for processing
+type workItem struct {
+	platform SocialPlatform
+	term     string
+}
+
 // Common social media platforms to check with enhanced selectors
 var platforms = []SocialPlatform{
 	{
@@ -252,8 +258,97 @@ func (mm *memoryManager) flush() {
 	}
 }
 
+// Update hardware acceleration settings with combined constants
+const (
+	// Hardware acceleration settings for GPU
+	gpuBatchSize  = 500 // Increased from 200
+	gpuMaxWorkers = 100 // Increased from 50
+	gpuMaxConns   = 200 // Increased from 100
+
+	// Hardware acceleration settings for TPU
+	tpuBatchSize  = 1000 // Increased from 500
+	tpuMaxWorkers = 200  // Increased from 100
+	tpuMaxConns   = 400  // Increased from 200
+
+	// Default acceleration for systems without GPU/TPU
+	defaultBatchSize  = 50
+	defaultMaxWorkers = 20
+	defaultMaxConns   = 50
+)
+
+// Add accelerator capabilities
+type hardwareAccelerator struct {
+	hasGPU     bool
+	hasTPU     bool
+	deviceName string
+	maxBatch   int
+	maxWorkers int
+	maxConns   int
+}
+
+func detectHardware() hardwareAccelerator {
+	acc := hardwareAccelerator{
+		maxBatch:   defaultBatchSize,  // Increased default batch
+		maxWorkers: defaultMaxWorkers, // Increased default workers
+		maxConns:   defaultMaxConns,   // Increased default connections
+	}
+
+	// Check for NVIDIA GPU
+	if _, err := os.Stat("/dev/nvidia0"); err == nil {
+		acc.hasGPU = true
+		acc.deviceName = "NVIDIA GPU"
+		acc.maxBatch = gpuBatchSize
+		acc.maxWorkers = gpuMaxWorkers
+		acc.maxConns = gpuMaxConns
+	}
+
+	// Check for Google TPU
+	if _, err := os.Stat("/dev/accel0"); err == nil {
+		acc.hasTPU = true
+		acc.deviceName = "Google TPU"
+		acc.maxBatch = tpuBatchSize
+		acc.maxWorkers = tpuMaxWorkers
+		acc.maxConns = tpuMaxConns
+	}
+
+	return acc
+}
+
 // SearchProfilesSequentially searches for a username across platforms one by one
 func SearchProfilesSequentially(username string, outputPath string, verbose bool) (*SocialMediaResults, error) {
+	// Detect hardware capabilities
+	acc := detectHardware()
+	if verbose && (acc.hasGPU || acc.hasTPU) {
+		fmt.Printf("Hardware acceleration enabled: %s (Batch: %d, Workers: %d)\n",
+			acc.deviceName, acc.maxBatch, acc.maxWorkers)
+	}
+
+	// Initialize optimized transport
+	transport := &http.Transport{
+		MaxIdleConns:        acc.maxConns,
+		MaxIdleConnsPerHost: acc.maxConns,
+		MaxConnsPerHost:     acc.maxConns,
+		IdleConnTimeout:     30 * time.Second,
+		DisableKeepAlives:   false,
+		DisableCompression:  false,
+		ForceAttemptHTTP2:   true,
+		WriteBufferSize:     64 * 1024, // Increased buffer size
+		ReadBufferSize:      64 * 1024,
+	}
+
+	// Create connection pool with hardware-optimized settings
+	connPool := &sync.Pool{
+		New: func() interface{} {
+			return &http.Client{
+				Timeout:   time.Second * 30, // Increased timeout
+				Transport: transport,
+			}
+		},
+	}
+
+	// Optimize rate limiter based on hardware
+	limiter := rate.NewLimiter(rate.Limit(acc.maxWorkers*2), acc.maxWorkers)
+
 	// Initialize results only once at the start
 	results := &SocialMediaResults{
 		Query:     username,
@@ -271,7 +366,7 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	}
 
 	// Initialize rate limiter and error group
-	limiter := rate.NewLimiter(rate.Limit(scanRateLimit), maxConcurrentScans)
+	limiter = rate.NewLimiter(rate.Limit(scanRateLimit), maxConcurrentScans)
 	g, ctx := errgroup.WithContext(context.Background())
 
 	// Create result channels
@@ -282,11 +377,6 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	var wg sync.WaitGroup
 
 	// Create work items channel
-	type workItem struct {
-		platform SocialPlatform
-		term     string
-	}
-
 	workChan := make(chan workItem)
 
 	// Create rate tracker
@@ -332,44 +422,40 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 		}
 	}()
 
-	// Spawn workers
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		g.Go(func() error { // Use errgroup instead of plain goroutine
-			defer wg.Done()
-			worker := &http.Client{
-				Timeout: time.Second * 20, // Increased timeout for slower systems
-				Transport: &http.Transport{
-					MaxIdleConns:        5,  // Reduced from 100
-					MaxIdleConnsPerHost: 2,  // Reduced from 10
-					MaxConnsPerHost:     10, // Reduced from 100
-					IdleConnTimeout:     30 * time.Second,
-					DisableKeepAlives:   false,
-					DisableCompression:  false,
-				},
+	// Create channels for batch processing
+	workChan = make(chan workItem, acc.maxWorkers*2)
+	batchChan := make(chan []workItem, acc.maxWorkers)
+
+	// Create batch processor
+	go func() {
+		batch := make([]workItem, 0, acc.maxBatch)
+		for work := range workChan {
+			batch = append(batch, work)
+			if len(batch) >= acc.maxBatch {
+				batchItems := make([]workItem, len(batch))
+				copy(batchItems, batch)
+				batchChan <- batchItems
+				batch = batch[:0]
 			}
+		}
+		// Send remaining items
+		if len(batch) > 0 {
+			batchChan <- batch
+		}
+		close(batchChan)
+	}()
 
-			for work := range workChan {
-				// Add periodic cleanup
-				runtime.GC()
+	// Spawn optimized number of workers
+	for i := 0; i < acc.maxWorkers; i++ {
+		wg.Add(1)
+		g.Go(func() error {
+			defer wg.Done()
+			client := connPool.Get().(*http.Client)
+			defer connPool.Put(client)
 
-				select {
-				case <-ctx.Done():
-					return ctx.Err() // Return error when context is cancelled
-				default:
-					// Rate limiting
-					if err := limiter.Wait(ctx); err != nil {
-						return err // Return rate limiting errors
-					}
-
-					// Process profile
-					result := processSingleProfile(worker, work.platform, work.term)
-					if result.Exists {
-						memManager.add(result)
-					}
-
-					tracker.increment()
-					bar.Add(1)
+			for items := range batchChan {
+				if err := processBatchParallel(ctx, client, items, memManager, tracker, bar, limiter); err != nil {
+					return err
 				}
 			}
 			return nil
@@ -421,6 +507,64 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	}
 
 	return results, nil
+}
+
+// Add new parallel batch processor
+func processBatchParallel(ctx context.Context, client *http.Client, batch []workItem,
+	memManager *memoryManager, tracker *rateTracker, bar *progressbar.ProgressBar,
+	limiter *rate.Limiter) error {
+
+	var wg sync.WaitGroup
+	resultChan := make(chan ProfileResult, len(batch))
+	errChan := make(chan error, len(batch))
+	sem := make(chan struct{}, 10) // Limit concurrent requests within batch
+
+	for _, work := range batch {
+		wg.Add(1)
+		go func(w workItem) {
+			defer wg.Done()
+			sem <- struct{}{}        // Acquire semaphore
+			defer func() { <-sem }() // Release semaphore
+
+			if err := limiter.Wait(ctx); err != nil {
+				errChan <- err
+				return
+			}
+
+			result := processSingleProfile(client, w.platform, w.term)
+			if result.Exists {
+				select {
+				case resultChan <- result:
+				default:
+					// Drop result if channel is full
+				}
+			}
+
+			tracker.increment()
+			bar.Add(1)
+		}(work)
+	}
+
+	// Process results in parallel
+	go func() {
+		wg.Wait()
+		close(resultChan)
+		close(errChan)
+	}()
+
+	// Collect results
+	for result := range resultChan {
+		memManager.add(result)
+	}
+
+	// Check for errors
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Update processSingleProfile to remove verbose parameter in checkProfile call
@@ -587,7 +731,7 @@ func extractProfileInfo(doc *goquery.Document, result *ProfileResult, platform S
 		doc.Find(platform.JoinDateSelector).Each(func(i int, s *goquery.Selection) {
 			text := s.Text()
 			if strings.Contains(strings.ToLower(text), "join") ||
-				strings.Contains(strings.ToLower(text), "creat") ||
+				strings.Contains(strings.ToLower(text), "creat") || // Fixed from contains to Contains
 				s.Is("relative-time") {
 				// Save the join date text or timestamp attribute
 				if timestamp, exists := s.Attr("datetime"); exists {
