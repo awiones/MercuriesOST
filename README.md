@@ -144,6 +144,6 @@ The developers assume no liability for misuse.
 ---
 
 <div align="center">
-  Built with ❤️ by <a href="https://github.com/awion">awion</a>
+  Built with ❤️ by <a href="https://github.com/awiones">awiones</a>
 </div>
 
