@@ -19,13 +19,12 @@
     <a href="https://golang.org/">
       <img src="https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go&logoColor=white" alt="Go Version" />
     </a>
-    <a href="LICENSE">
-      <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" />
-    </a>
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License" />
     <a href="CONTRIBUTING.md">
       <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
     </a>
   </p>
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" />
 </div>
 
 ---
@@ -127,15 +126,6 @@ go build -o mercuries
 
 For major changes, please open an issue first to discuss.
 
----
-
-## 📜 License
-
-<div align="center">
-  This project is licensed under the MIT License - see the [LICENSE](LICENSE) file.
-</div>
-
----
 
 ## ⚠️ Ethical Usage Statement
 
