@@ -33,22 +33,25 @@
 
 **MercuriesOST** is a powerful Open Source Intelligence (OSINT) tool designed to gather, analyze, and visualize information across the web. Built with **Go**, it excels at discovering digital footprints efficiently.
 
-> *"Knowledge is power, information is liberty."*
+> _"Knowledge is power, information is liberty."_
 
 ---
 
 ## ✨ Key Features
 
 ### 🕵️ Platform Intelligence
+
 - **[SCAN]** Cross-Platform Reconnaissance – Scan profiles across major social networks, forums, and professional sites.
 - **[IDENT]** Identity Correlation Engine – Discover username patterns and variations.
 
 ### ⚡ Performance & Usability
+
 - **[PROC]** Optimized Parallel Processing – Dynamic threading for efficiency.
 - **[SYS]** Minimal Footprint Design – Lightweight and resource-friendly.
 - **[DASH]** Live Analysis Dashboard – Real-time visualization of scan progress.
 
 ### 📊 Data Processing
+
 - **[META]** Deep Metadata Extraction – Uncover hidden connection patterns.
 - **[LINK]** Relationship Mapping – Auto-visualization of connections.
 - **[REPT]** Flexible Export Pipeline – Generate detailed reports in multiple formats.
@@ -84,12 +87,14 @@ go build -o mercuries
 
 ## 📖 Command Reference
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `--social-media` | Limit search to social profiles | `./mercuries --social-media "John Smith"` |
-| `-o, --output` | Custom output directory | `./mercuries -u "username" -o "my_results"` |
-| `-v, --verbose` | Enable detailed logging | `./mercuries -u "username" --verbose` |
-| `--version` | Display version information | `./mercuries --version` |
+| Command          | Description                     | Example                                     |
+| ---------------- | ------------------------------- | ------------------------------------------- |
+| `--social-media` | Limit search to social profiles | `./mercuries --social-media "John Smith"`   |
+| `-o, --output`   | Custom output directory         | `./mercuries -u "username" -o "my_results"` |
+| `-v, --verbose`  | Enable detailed logging         | `./mercuries -u "username" --verbose`       |
+| `--version`      | Display version information     | `./mercuries --version`                     |
+| `--email`        | Email intelligence lookup       | `./mercuries --email "user@example.com"`    |
+| `--gid`          | Google ID intelligence lookup   | `./mercuries --gid "123456789012345678901"` |
 
 ---
 
@@ -107,14 +112,102 @@ go build -o mercuries
 
 ---
 
-## 💻 System Requirements
+## How It Works
 
-- **Go**: Version 1.23+
-- **Memory**: 500MB RAM minimum
-- **Connectivity**: Internet required
-- **OS**: Cross-platform (Windows, macOS, Linux)
+```mermaid
+graph TD
+    A[Input Username/Email] --> B[Profile Enumeration]
+    B --> |Generate Variations| C[Username Permutations]
+    B --> |Extract| D[Email Analysis]
 
----
+    C --> E[Platform Detection]
+    D --> E
+
+    E --> F[Initialize Concurrent Workers]
+    F --> G[Query Social Platforms]
+    F --> H[Query Professional Networks]
+    F --> I[Query Development Platforms]
+    F --> J[Query Data Breaches]
+
+    G --> K[Data Collection & Validation]
+    H --> K
+    I --> K
+    J --> K
+
+    K --> L[Data Enrichment]
+    L --> |Extract Metadata| M[Pattern Analysis]
+    L --> |Cross Reference| N[Connection Mapping]
+
+    M --> O[Generate Intelligence Report]
+    N --> O
+
+    subgraph "New Functionality"
+        D --> P[Email Analysis]
+        P --> Q[Validate Email Format]
+        Q --> R[Extract Username & Domain]
+        R --> S[Check Email Service Provider]
+        S --> T[Analyze Email Patterns]
+        T --> U[Check Data Breaches]
+        U --> V[Gather Domain Information]
+        V --> W[Find Social Profiles]
+        W --> X[Check Online Presence]
+        X --> Y[Generate Email Report]
+
+        C --> Z[Google ID Analysis]
+        Z --> AA[Check Google Services]
+        AA --> AB[Analyze Google Maps Contributions]
+        AB --> AC[Check Google Photos]
+        AC --> AD[Analyze Google+ Archive]
+        AD --> AE[Generate Google ID Report]
+    end
+
+    style A fill:#f9d77e,stroke:#f9a11b
+    style B fill:#a8e6cf,stroke:#1b998b
+    style C fill:#a8e6cf,stroke:#1b998b
+    style D fill:#a8e6cf,stroke:#1b998b
+    style E fill:#fdffab,stroke:#ffd166
+    style F fill:#fdffab,stroke:#ffd166
+    style G fill:#ffc3a0,stroke:#ff677d
+    style H fill:#ffc3a0,stroke:#ff677d
+    style I fill:#ffc3a0,stroke:#ff677d
+    style J fill:#ffc3a0,stroke:#ff677d
+    style K fill:#ff9aa2,stroke:#ef476f
+    style L fill:#c5a3ff,stroke:#8a508f
+    style M fill:#c5a3ff,stroke:#8a508f
+    style N fill:#c5a3ff,stroke:#8a508f
+    style O fill:#dcd6f7,stroke:#6c63ff
+
+    style P fill:#a8e6cf,stroke:#1b998b
+    style Q fill:#fdffab,stroke:#ffd166
+    style R fill:#ffc3a0,stroke:#ff677d
+    style S fill:#ff9aa2,stroke:#ef476f
+    style T fill:#c5a3ff,stroke:#8a508f
+    style U fill:#dcd6f7,stroke:#6c63ff
+    style V fill:#a8e6cf,stroke:#1b998b
+    style W fill:#fdffab,stroke:#ffd166
+    style X fill:#ffc3a0,stroke:#ff677d
+    style Y fill:#ff9aa2,stroke:#ef476f
+
+    style Z fill:#a8e6cf,stroke:#1b998b
+    style AA fill:#fdffab,stroke:#ffd166
+    style AB fill:#ffc3a0,stroke:#ff677d
+    style AC fill:#ff9aa2,stroke:#ef476f
+    style AD fill:#c5a3ff,stroke:#8a508f
+    style AE fill:#dcd6f7,stroke:#6c63ff
+
+subgraph "Supported Platforms"
+    G
+    H
+    I
+    J
+end
+
+subgraph "Data Analysis"
+    L
+    M
+    N
+end
+```
 
 ## 👥 Contributing
 
@@ -125,7 +218,6 @@ go build -o mercuries
 5. **Submit** a pull request
 
 For major changes, please open an issue first to discuss.
-
 
 ## ⚠️ Ethical Usage Statement
 
@@ -146,4 +238,3 @@ The developers assume no liability for misuse.
 <div align="center">
   Built with ❤️ by <a href="https://github.com/awiones">awiones</a>
 </div>
-
