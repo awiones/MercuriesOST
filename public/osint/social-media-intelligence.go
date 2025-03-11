@@ -489,7 +489,7 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 
 		if result.Exists {
 			results.ProfilesFound++
-			memManager.add(result)  // Now memManager is defined
+			memManager.add(result) // Now memManager is defined
 			results.Profiles = append(results.Profiles, result)
 
 			if verbose {
@@ -499,7 +499,7 @@ func SearchProfilesSequentially(username string, outputPath string, verbose bool
 	}
 
 	// Flush any remaining results before returning
-	memManager.flush()  // Now memManager is defined
+	memManager.flush() // Now memManager is defined
 
 	// Check for errors
 	if len(errorsChan) > 0 {

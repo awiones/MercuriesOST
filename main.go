@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +17,7 @@ import (
 // Version information
 const (
 	AppName    = "MercuriesOST"
-	AppVersion = "0.1.0"
+	AppVersion = "0.1.1"
 )
 
 // Command line flags
@@ -34,6 +34,7 @@ var (
 	emailFlag       = flag.String("email", "", "Email intelligence lookup")
 	ipFlag          = flag.String("ip", "", "IP address intelligence lookup")
 	usernameFlag    = flag.String("username", "", "Username intelligence lookup")
+	gidFlag         = flag.String("gid", "", "Google ID intelligence lookup")
 )
 
 func main() {
@@ -47,6 +48,13 @@ func main() {
 	if *versionFlag {
 		fmt.Printf("%s version %s\n", AppName, AppVersion)
 		os.Exit(0)
+	}
+
+	// Handle Google ID lookup
+	if *gidFlag != "" {
+		fmt.Printf("Running Google ID Intelligence module for ID: %s\n", *gidFlag)
+		runGoogleIDIntelligence(*gidFlag, *outputFlag)
+		return
 	}
 
 	// Handle username-based search
@@ -90,8 +98,6 @@ func main() {
 		runSocialMediaIntelligence(*socialMediaFlag, *outputFlag)
 	case *domainFlag != "":
 		fmt.Println("Domain intelligence module not implemented yet")
-	case *emailFlag != "":
-		fmt.Println("Email intelligence module not implemented yet")
 	case *ipFlag != "":
 		fmt.Println("IP intelligence module not implemented yet")
 	case *usernameFlag != "":
@@ -215,74 +221,60 @@ func min(a, b int) int {
 	return b
 }
 
-// Add this new function for email intelligence
 func runEmailIntelligence(email, outputPath string) {
 	fmt.Printf("Analyzing email: %s\n", email)
 
-	// Call the email analysis implementation
 	results, err := osint.AnalyzeEmail(email)
 	if err != nil {
-		color.Red("Error: %v", err)
+		color.Red("Error analyzing email: %v", err)
+		return
+	}
+
+	// Display results using the new method
+	results.DisplayResults()
+
+	// Save to file if output path is specified
+	if outputPath != "" {
+		if data, err := json.MarshalIndent(results, "", "  "); err == nil {
+			if err := os.WriteFile(outputPath, data, 0644); err == nil {
+				color.Green("\nResults saved to: %s", outputPath)
+			} else {
+				color.Red("Error saving results: %v", err)
+			}
+		} else {
+			color.Red("Error encoding results: %v", err)
+		}
+	}
+}
+
+// Add new function to handle Google ID intelligence
+func runGoogleIDIntelligence(gid string, outputPath string) {
+	fmt.Printf("Analyzing Google ID: %s\n", gid)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Run the Google ID analysis
+	results, err := osint.AnalyzeGoogleID(ctx, gid)
+	if err != nil {
+		color.Red("Error analyzing Google ID: %v", err)
 		return
 	}
 
 	// Display results
-	displayEmailResults(results)
+	results.DisplayResults()
 
-	// Save results if output path is specified
+	// Save to file if output path is specified
 	if outputPath != "" {
-		data, err := json.MarshalIndent(results, "", "  ")
-		if err != nil {
-			color.Red("Error saving results: %v", err)
-			return
+		if data, err := json.MarshalIndent(results, "", "  "); err == nil {
+			if err := os.WriteFile(outputPath, data, 0644); err == nil {
+				color.Green("\nResults saved to: %s", outputPath)
+			} else {
+				color.Red("Error saving results: %v", err)
+			}
+		} else {
+			color.Red("Error encoding results: %v", err)
 		}
-		if err := ioutil.WriteFile(outputPath, data, 0644); err != nil {
-			color.Red("Error writing to file: %v", err)
-			return
-		}
-		color.Green("Results saved to: %s", outputPath)
 	}
-}
-
-// displayEmailResults formats and displays the email analysis results
-func displayEmailResults(results *osint.EmailAnalysisResult) {
-	color.Green("\n=== EMAIL ANALYSIS RESULTS ===")
-	color.Yellow("Email: %s", results.Email)
-	color.Yellow("Timestamp: %s\n", results.Timestamp)
-
-	// Validity
-	if results.Valid {
-		color.Green("✓ Email format is valid")
-	} else {
-		color.Red("✗ Invalid email format")
-	}
-
-	// Domain Information
-	color.Cyan("\n[Domain Information]")
-	color.White("Provider: %s", results.DomainInfo.Provider)
-	color.White("Reputation: %s", results.DomainInfo.Reputation)
-	color.White("Has MX Records: %v", results.DomainInfo.HasMX)
-	color.White("Has SPF: %v", results.DomainInfo.HasSPF)
-	color.White("Has DMARC: %v", results.DomainInfo.HasDMARC)
-
-	// Format Analysis
-	color.Cyan("\n[Format Analysis]")
-	color.White("Pattern: %s", results.Format.Pattern)
-	color.White("Contains Name: %v", results.Format.ContainsName)
-	color.White("Contains Year: %v", results.Format.ContainsYear)
-	color.White("Has Special Characters: %v", results.Format.SpecialChars)
-
-	// Security Concerns
-	if results.DisposableEmail {
-		color.Red("\n[Security Warning]")
-		color.Red("⚠ This appears to be a disposable email address")
-	}
-
-	// Insights
-	color.Cyan("\n[Insights]")
-	for _, insight := range results.Insights {
-		color.White("• %s", insight)
-	}
-
-	fmt.Println()
 }
