@@ -24,7 +24,6 @@
       <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
     </a>
   </p>
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License" />
 </div>
 
 ---
@@ -117,96 +116,119 @@ go build -o mercuries
 
 ```mermaid
 graph TD
-    A[Input Username/Email] --> B[Profile Enumeration]
+    A[Input Username/Email/Phone] --> B[Profile Enumeration]
     B --> |Generate Variations| C[Username Permutations]
     B --> |Extract| D[Email Analysis]
-
-    C --> E[Platform Detection]
-    D --> E
-
-    E --> F[Initialize Concurrent Workers]
-    F --> G[Query Social Platforms]
-    F --> H[Query Professional Networks]
-    F --> I[Query Development Platforms]
-    F --> J[Query Data Breaches]
-
-    G --> K[Data Collection & Validation]
-    H --> K
-    I --> K
-    J --> K
-
-    K --> L[Data Enrichment]
-    L --> |Extract Metadata| M[Pattern Analysis]
-    L --> |Cross Reference| N[Connection Mapping]
-
-    M --> O[Generate Intelligence Report]
-    N --> O
+    B --> |Extract| E[Phone Number Analysis]
+    
+    C --> F[Platform Detection]
+    D --> F
+    E --> F
+    
+    F --> G[Initialize Concurrent Workers]
+    G --> H[Query Social Platforms]
+    G --> I[Query Professional Networks]
+    G --> J[Query Development Platforms]
+    G --> K[Query Data Breaches]
+    
+    H --> L[Data Collection & Validation]
+    I --> L
+    J --> L
+    K --> L
+    
+    L --> M[Data Enrichment]
+    M --> |Extract Metadata| N[Pattern Analysis]
+    M --> |Cross Reference| O[Connection Mapping]
+    
+    N --> P[Generate Intelligence Report]
+    O --> P
 
     subgraph "New Functionality"
-        D --> P[Email Analysis]
-        P --> Q[Validate Email Format]
-        Q --> R[Extract Username & Domain]
-        R --> S[Check Email Service Provider]
-        S --> T[Analyze Email Patterns]
-        T --> U[Check Data Breaches]
-        U --> V[Gather Domain Information]
-        V --> W[Find Social Profiles]
-        W --> X[Check Online Presence]
-        X --> Y[Generate Email Report]
+        D --> Q[Email Analysis]
+        Q --> R[Validate Email Format]
+        R --> S[Extract Username & Domain]
+        S --> T[Check Email Service Provider]
+        T --> U[Analyze Email Patterns]
+        U --> V[Check Data Breaches]
+        V --> W[Gather Domain Information]
+        W --> X[Find Social Profiles]
+        X --> Y[Check Online Presence]
+        Y --> Z[Generate Email Report]
 
-        C --> Z[Google ID Analysis]
-        Z --> AA[Check Google Services]
-        AA --> AB[Analyze Google Maps Contributions]
-        AB --> AC[Check Google Photos]
-        AC --> AD[Analyze Google+ Archive]
-        AD --> AE[Generate Google ID Report]
+        E --> AA[Phone Number Analysis]
+        AA --> AB[Validate Phone Number]
+        AB --> AC[Extract Country & Region]
+        AC --> AD[Check Carrier Information]
+        AD --> AE[Analyze Risk Assessment]
+        AE --> AF[Check Online Presence]
+        AF --> AG[Perform Reverse Lookup]
+        AG --> AH[Check Messaging Apps]
+        AH --> AI[Generate Phone Report]
+
+        C --> AJ[Google ID Analysis]
+        AJ --> AK[Check Google Services]
+        AK --> AL[Analyze Google Maps Contributions]
+        AL --> AM[Check Google Photos]
+        AM --> AN[Analyze Google+ Archive]
+        AN --> AO[Generate Google ID Report]
     end
 
     style A fill:#f9d77e,stroke:#f9a11b
     style B fill:#a8e6cf,stroke:#1b998b
     style C fill:#a8e6cf,stroke:#1b998b
     style D fill:#a8e6cf,stroke:#1b998b
-    style E fill:#fdffab,stroke:#ffd166
+    style E fill:#a8e6cf,stroke:#1b998b
     style F fill:#fdffab,stroke:#ffd166
-    style G fill:#ffc3a0,stroke:#ff677d
+    style G fill:#fdffab,stroke:#ffd166
     style H fill:#ffc3a0,stroke:#ff677d
     style I fill:#ffc3a0,stroke:#ff677d
     style J fill:#ffc3a0,stroke:#ff677d
-    style K fill:#ff9aa2,stroke:#ef476f
-    style L fill:#c5a3ff,stroke:#8a508f
+    style K fill:#ffc3a0,stroke:#ff677d
+    style L fill:#ff9aa2,stroke:#ef476f
     style M fill:#c5a3ff,stroke:#8a508f
     style N fill:#c5a3ff,stroke:#8a508f
-    style O fill:#dcd6f7,stroke:#6c63ff
+    style O fill:#c5a3ff,stroke:#8a508f
+    style P fill:#dcd6f7,stroke:#6c63ff
 
-    style P fill:#a8e6cf,stroke:#1b998b
-    style Q fill:#fdffab,stroke:#ffd166
-    style R fill:#ffc3a0,stroke:#ff677d
-    style S fill:#ff9aa2,stroke:#ef476f
-    style T fill:#c5a3ff,stroke:#8a508f
-    style U fill:#dcd6f7,stroke:#6c63ff
-    style V fill:#a8e6cf,stroke:#1b998b
-    style W fill:#fdffab,stroke:#ffd166
-    style X fill:#ffc3a0,stroke:#ff677d
-    style Y fill:#ff9aa2,stroke:#ef476f
+    style Q fill:#a8e6cf,stroke:#1b998b
+    style R fill:#fdffab,stroke:#ffd166
+    style S fill:#ffc3a0,stroke:#ff677d
+    style T fill:#ff9aa2,stroke:#ef476f
+    style U fill:#c5a3ff,stroke:#8a508f
+    style V fill:#dcd6f7,stroke:#6c63ff
+    style W fill:#a8e6cf,stroke:#1b998b
+    style X fill:#fdffab,stroke:#ffd166
+    style Y fill:#ffc3a0,stroke:#ff677d
+    style Z fill:#ff9aa2,stroke:#ef476f
 
-    style Z fill:#a8e6cf,stroke:#1b998b
-    style AA fill:#fdffab,stroke:#ffd166
-    style AB fill:#ffc3a0,stroke:#ff677d
-    style AC fill:#ff9aa2,stroke:#ef476f
-    style AD fill:#c5a3ff,stroke:#8a508f
-    style AE fill:#dcd6f7,stroke:#6c63ff
+    style AA fill:#a8e6cf,stroke:#1b998b
+    style AB fill:#fdffab,stroke:#ffd166
+    style AC fill:#ffc3a0,stroke:#ff677d
+    style AD fill:#ff9aa2,stroke:#ef476f
+    style AE fill:#c5a3ff,stroke:#8a508f
+    style AF fill:#dcd6f7,stroke:#6c63ff
+    style AG fill:#a8e6cf,stroke:#1b998b
+    style AH fill:#fdffab,stroke:#ffd166
+    style AI fill:#ffc3a0,stroke:#ff677d
+
+    style AJ fill:#a8e6cf,stroke:#1b998b
+    style AK fill:#fdffab,stroke:#ffd166
+    style AL fill:#ffc3a0,stroke:#ff677d
+    style AM fill:#ff9aa2,stroke:#ef476f
+    style AN fill:#c5a3ff,stroke:#8a508f
+    style AO fill:#dcd6f7,stroke:#6c63ff
 
 subgraph "Supported Platforms"
-    G
     H
     I
     J
+    K
 end
 
 subgraph "Data Analysis"
-    L
     M
     N
+    O
 end
 ```
 
