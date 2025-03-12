@@ -87,14 +87,15 @@ go build -o mercuries
 
 ## 📖 Command Reference
 
-| Command          | Description                     | Example                                     |
-| ---------------- | ------------------------------- | ------------------------------------------- |
-| `--social-media` | Limit search to social profiles | `./mercuries --social-media "John Smith"`   |
-| `-o, --output`   | Custom output directory         | `./mercuries -u "username" -o "my_results"` |
-| `-v, --verbose`  | Enable detailed logging         | `./mercuries -u "username" --verbose`       |
-| `--version`      | Display version information     | `./mercuries --version`                     |
-| `--email`        | Email intelligence lookup       | `./mercuries --email "user@example.com"`    |
-| `--gid`          | Google ID intelligence lookup   | `./mercuries --gid "123456789012345678901"` |
+| Command          | Description                      | Example                                     |
+| ---------------- | -------------------------------- | ------------------------------------------- |
+| `--social-media` | Limit search to social profiles  | `./mercuries --social-media "John Smith"`   |
+| `-o, --output`   | Custom output directory          | `./mercuries -u "username" -o "my_results"` |
+| `-v, --verbose`  | Enable detailed logging          | `./mercuries -u "username" --verbose`       |
+| `--version`      | Display version information      | `./mercuries --version`                     |
+| `--email`        | Email intelligence lookup        | `./mercuries --email "user@example.com"`    |
+| `--gid`          | Google ID intelligence lookup    | `./mercuries --gid "123456789012345678901"` |
+| `--phone`        | Phone number intelligence lookup | `./mercuries --phone "+1234567890"`         |
 
 ---
 

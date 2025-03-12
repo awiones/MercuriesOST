@@ -17,7 +17,7 @@ import (
 // Version information
 const (
 	AppName    = "MercuriesOST"
-	AppVersion = "0.1.1"
+	AppVersion = "0.1.2"
 )
 
 // Command line flags
@@ -35,6 +35,7 @@ var (
 	ipFlag          = flag.String("ip", "", "IP address intelligence lookup")
 	usernameFlag    = flag.String("username", "", "Username intelligence lookup")
 	gidFlag         = flag.String("gid", "", "Google ID intelligence lookup")
+	phoneFlag       = flag.String("phone", "", "Phone number intelligence lookup") // Add this line
 )
 
 func main() {
@@ -48,6 +49,13 @@ func main() {
 	if *versionFlag {
 		fmt.Printf("%s version %s\n", AppName, AppVersion)
 		os.Exit(0)
+	}
+
+	// Handle phone number lookup
+	if *phoneFlag != "" {
+		fmt.Printf("Running Phone Number Intelligence module for number: %s\n", *phoneFlag)
+		runPhoneNumberIntelligence(*phoneFlag, *outputFlag)
+		return
 	}
 
 	// Handle Google ID lookup
@@ -277,4 +285,88 @@ func runGoogleIDIntelligence(gid string, outputPath string) {
 			color.Red("Error encoding results: %v", err)
 		}
 	}
+}
+
+// Add this new function
+func runPhoneNumberIntelligence(phone string, outputPath string) {
+	fmt.Printf("Analyzing phone number: %s\n", phone)
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Run the phone number analysis
+	results, err := osint.AnalyzePhoneNumber(ctx, phone)
+	if err != nil {
+		color.Red("Error analyzing phone number: %v", err)
+		return
+	}
+
+	// Display header
+	color.Cyan("\n=====================================")
+	color.Cyan(" PHONE NUMBER INTELLIGENCE REPORT")
+	color.Cyan("=====================================\n")
+
+	// Display results with improved formatting
+	results.DisplayResults()
+
+	// Display summary footer
+	color.Cyan("\n=== ANALYSIS SUMMARY ===")
+
+	// Risk level indicator
+	switch results.RiskAssessment.Level {
+	case "Low":
+		color.Green("Risk Level: %s (%d/100)", results.RiskAssessment.Level, results.RiskAssessment.Score)
+	case "Medium":
+		color.Yellow("Risk Level: %s (%d/100)", results.RiskAssessment.Level, results.RiskAssessment.Score)
+	case "High":
+		color.Red("Risk Level: %s (%d/100)", results.RiskAssessment.Level, results.RiskAssessment.Score)
+	}
+
+	// Carrier status
+	if results.Carrier.Name != "Unknown Carrier" {
+		color.Green("Carrier: Identified (%s)", results.Carrier.Name)
+	} else {
+		color.Yellow("Carrier: Unknown")
+	}
+
+	// Format validity
+	if results.ValidationInfo.IsValid {
+		color.Green("Format: Valid")
+	} else {
+		color.Red("Format: Invalid")
+	}
+
+	// Spam likelihood
+	switch strings.ToLower(results.RiskAssessment.SpamLikelihood) {
+	case "low":
+		color.Green("Spam Likelihood: %s", results.RiskAssessment.SpamLikelihood)
+	case "medium":
+		color.Yellow("Spam Likelihood: %s", results.RiskAssessment.SpamLikelihood)
+	case "high":
+		color.Red("Spam Likelihood: %s", results.RiskAssessment.SpamLikelihood)
+	}
+
+	// Online presence summary
+	if len(results.OnlinePresence) > 0 {
+		color.Green("Online Presence: Found on %d platforms", len(results.OnlinePresence))
+	} else {
+		color.Yellow("Online Presence: No traces found")
+	}
+
+	// Save to file if output path is specified
+	if outputPath != "" {
+		if data, err := json.MarshalIndent(results, "", "  "); err == nil {
+			if err := os.WriteFile(outputPath, data, 0644); err == nil {
+				color.Green("\nDetailed results saved to: %s", outputPath)
+			} else {
+				color.Red("Error saving results: %v", err)
+			}
+		} else {
+			color.Red("Error encoding results: %v", err)
+		}
+	}
+
+	// Display footer
+	color.Cyan("\n=====================================")
 }
